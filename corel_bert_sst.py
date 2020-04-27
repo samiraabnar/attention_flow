@@ -126,7 +126,7 @@ for layer in model.distilbert.transformer.layer:
 all_examples_grads = []
 all_examples_attentions = []
 all_examples_x = []
-n_examples = 5
+n_examples = 100
 for x,y in test_dataset:
     with tf.GradientTape() as tape:
         inputs_embeds = model.distilbert.embeddings(x['input_ids'])
@@ -135,10 +135,13 @@ for x,y in test_dataset:
                                                     'inputs_embeds':inputs_embeds,
                                                     'token_type_ids': x['token_type_ids']}, training=False
                                             )
-    grads = tape.gradient(logits, inputs_embeds)[0]  
+        pindex = tf.argmax(logits, axis=-1)
+        true_logits = logits[:,y[0]]
+        print(true_logits)
+    grads = tape.gradient(logits, inputs_embeds)[0]
     
     length = tf.reduce_sum(x['attention_mask'], axis=-1)[0]    
-    all_examples_grads.append(tf.reduce_sum(grads, -1)[:length])
+    all_examples_grads.append(tf.abs(tf.reduce_sum(grads, -1)[:length]))
     
     _attentions = [att.numpy() for att in attentions]
     attentions_mat = np.asarray(_attentions)[:,0]
@@ -154,60 +157,65 @@ for x,y in test_dataset:
     
     
 
-print("compute raw relevance scores ...")
-all_examples_raw_relevance = {}
-for l in np.arange(5,6):
-    all_examples_raw_relevance[l] = []
-    for i in tqdm(np.arange(len(all_examples_x))):
-        tokens = tokens = tokenizer.convert_ids_to_tokens(all_examples_x[i])
-        length = len(tokens)
-        attention_relevance = get_raw_att_relevance(all_examples_attentions[i], tokens, layer=l)
-        all_examples_raw_relevance[l].append(np.asarray(attention_relevance))
+# print("compute raw relevance scores ...")
+# all_examples_raw_relevance = {}
+# for l in np.arange(0,6):
+#     all_examples_raw_relevance[l] = []
+#     for i in tqdm(np.arange(len(all_examples_x))):
+#         tokens = tokens = tokenizer.convert_ids_to_tokens(all_examples_x[i])
+#         length = len(tokens)
+#         attention_relevance = get_raw_att_relevance(all_examples_attentions[i], tokens, layer=l)
+#         all_examples_raw_relevance[l].append(np.asarray(attention_relevance))
 
-print("compute joint relevance scores ...")
-all_examples_joint_relevance = {}
-for l in np.arange(5,6):
-    all_examples_joint_relevance[l] = []
-    for i in tqdm(np.arange(len(all_examples_x))):
-        tokens = tokenizer.convert_ids_to_tokens(all_examples_x[i])
-        length = len(tokens)
-        attention_relevance = get_joint_relevance(all_examples_attentions[i], tokens, layer=l)
-        all_examples_joint_relevance[l].append(np.asarray(attention_relevance))
-    
-# print("compute flow relevance scores ...")
-# all_examples_flow_relevance = {}
-# for l in np.arange(5,6):
-#     all_examples_flow_relevance[l] = []
+# print("compute joint relevance scores ...")
+# all_examples_joint_relevance = {}
+# for l in [0, 2, 4, 5]:
+#     all_examples_joint_relevance[l] = []
 #     for i in tqdm(np.arange(len(all_examples_x))):
 #         tokens = tokenizer.convert_ids_to_tokens(all_examples_x[i])
-#         length = len(tokens)            
-#         attention_relevance = get_flow_relevance(all_examples_attentions[i], tokens, layer=l)
-#         all_examples_flow_relevance[l].append(np.asarray(attention_relevance))
+#         length = len(tokens)
+#         attention_relevance = get_joint_relevance(all_examples_attentions[i], tokens, layer=l)
+#         all_examples_joint_relevance[l].append(np.asarray(attention_relevance))
+    
+print("compute flow relevance scores ...")
+all_examples_flow_relevance = {}
+for l in [0, 2, 4, 5]:
+    flow_sps_grad = []
+    all_examples_flow_relevance[l] = []
+    for i in tqdm(np.arange(len(all_examples_x))):
+        tokens = tokenizer.convert_ids_to_tokens(all_examples_x[i])
+        length = len(tokens)            
+        attention_relevance = get_flow_relevance(all_examples_attentions[i], tokens, layer=l)
+        all_examples_flow_relevance[l].append(np.asarray(attention_relevance))
+        sp = spearmanr(all_examples_flow_relevance[l][i],all_examples_grads[i])
+        flow_sps_grad.append(sp[0])
+        
+    print(np.mean(flow_sps_grad), np.std(flow_sps_grad))
         
         
-for l in np.arange(5,6):
-    print("###############Layer ",l, "#############")
+# for l in [0, 2, 4, 5]:
+#     print("###############Layer ",l, "#############")
 
-    print('raw grad')
-    print(all_examples_raw_relevance[l][0].shape, all_examples_grads[0].shape)
-    raw_sps_grad = []
-    for i in np.arange(len(all_examples_x)):
-        sp = spearmanr(all_examples_raw_relevance[l][i],all_examples_grads[i])
-        raw_sps_grad.append(sp[0])
+#     print('raw grad')
+#     print(all_examples_raw_relevance[l][0].shape, all_examples_grads[0].shape)
+#     raw_sps_grad = []
+#     for i in np.arange(len(all_examples_x)):
+#         sp = spearmanr(all_examples_raw_relevance[l][i],all_examples_grads[i])
+#         raw_sps_grad.append(sp[0])
  
         
-    print(np.mean(raw_sps_grad), np.std(raw_sps_grad))
+#     print(np.mean(raw_sps_grad), np.std(raw_sps_grad))
 
     
-    print('joint grad')
-    print(all_examples_joint_relevance[l][0].shape, all_examples_grads[0].shape)
-    joint_sps_grad = []
-    for i in np.arange(len(all_examples_x)):
-        sp = spearmanr(all_examples_joint_relevance[l][i],all_examples_grads[i])
-        joint_sps_grad.append(sp[0])
+#     print('joint grad')
+#     print(all_examples_joint_relevance[l][0].shape, all_examples_grads[0].shape)
+#     joint_sps_grad = []
+#     for i in np.arange(len(all_examples_x)):
+#         sp = spearmanr(all_examples_joint_relevance[l][i],all_examples_grads[i])
+#         joint_sps_grad.append(sp[0])
 
         
-    print(np.mean(joint_sps_grad), np.std(joint_sps_grad))
+#     print(np.mean(joint_sps_grad), np.std(joint_sps_grad))
 
   
 #     print('flow grad')
