@@ -10,3 +10,7 @@ Attention Rollout  and Attention Flow recursively compute the token attentions i
 
 #### Here is the paper introducing these methods:
 * [Quantifying Attention Flow in Transformers](https://arxiv.org/abs/2005.00928)
+
+
+#### Related projects:
+* [An implementation of Attention Rollout for Vision Transformers by Jacob Gildenblat](https://github.com/jacobgil/vit-explain) (and a nice blog post on [`Exploring Explanaibality for Vision Transformers`](https://jacobgil.github.io/deeplearning/vision-transformer-explainability)).
